@@ -18,9 +18,9 @@ func main() {
 	fsHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
 	mux.Handle("/app/", cfg.middlewareMetricsInc(fsHandler))
 
-	mux.HandleFunc("GET /healthz", handlerHealth)
-	mux.HandleFunc("GET /metrics", cfg.handlerMetrics)
-	mux.HandleFunc("POST /reset", cfg.handlerReset)
+	mux.HandleFunc("GET /api/healthz", handlerHealth)
+	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
 
 	server := http.Server{
 		Addr:    ":8080",
