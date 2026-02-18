@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	// "github.com/google/uuid"
+	"database/sql"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rQxwX3/chirpy/internal/database"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -10,6 +14,18 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+}
+
+func getDBQueries() (*database.Queries, error) {
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return database.New(db), nil
 }
 
 func main() {
