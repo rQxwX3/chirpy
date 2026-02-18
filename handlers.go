@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
@@ -31,17 +32,34 @@ func handlerHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func filterProfane(chirpBody string) string {
+	profaneWords := [3]string{"kerfuffle", "sharbert", "fornax"}
+	words := strings.Split(chirpBody, " ")
+	newWords := []string{}
+
+	for _, word := range words {
+		for _, profaneWord := range profaneWords {
+			if strings.ToLower(word) == profaneWord {
+				word = "****"
+				break
+			}
+		}
+
+		newWords = append(newWords, word)
+	}
+
+	return strings.Join(newWords, " ")
+}
+
 func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	type chirp struct {
 		Body string `json:"body"`
 	}
 
 	type resp struct {
-		Valid bool `json:"valid"`
-	}
-
-	type errorResp struct {
-		Error error `json:"error"`
+		Valid       bool   `json:"valid"`
+		Error       error  `json:"error"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -53,7 +71,7 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 
-		respBody := errorResp{
+		respBody := resp{
 			Error: err,
 		}
 
@@ -84,8 +102,7 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 
-	respBody := resp{Valid: true}
-
+	respBody := resp{CleanedBody: filterProfane(chirpStruct.Body)}
 	data, err := json.Marshal(respBody)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
