@@ -180,7 +180,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
 	chirps, err := cfg.db.GetAllChirps(r.Context())
 	if err != nil {
-		log.Printf("Error quering database for chips")
+		log.Printf("Error quering database for chirps")
 		return
 	}
 
@@ -201,6 +201,49 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 			chirp.Body,
 			chirp.UserID,
 		})
+	}
+
+	data, err := json.Marshal(resBody)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(data)
+}
+
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	chirpIDString := r.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(chirpIDString)
+	if err != nil {
+		log.Printf("Error parsing UUID path value %s", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		log.Printf("Error quering database for chirp")
+		w.WriteHeader(404)
+		return
+	}
+
+	type res struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	resBody := res{
+		chirp.ID,
+		chirp.CreatedAt,
+		chirp.UpdatedAt,
+		chirp.Body,
+		chirp.UserID,
 	}
 
 	data, err := json.Marshal(resBody)
