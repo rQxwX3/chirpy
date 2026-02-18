@@ -15,12 +15,10 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
-func getDBQueries() (*database.Queries, error) {
-	godotenv.Load()
-	dbURL := os.Getenv("DB_URL")
-
+func getDBQueries(dbURL string) (*database.Queries, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		return nil, err
@@ -30,13 +28,17 @@ func getDBQueries() (*database.Queries, error) {
 }
 
 func main() {
-	queries, err := getDBQueries()
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+
+	queries, err := getDBQueries(dbURL)
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %s", err)
 	}
 
 	cfg := apiConfig{
-		db: queries,
+		db:       queries,
+		platform: os.Getenv("PLATFORM"),
 	}
 
 	mux := http.NewServeMux()

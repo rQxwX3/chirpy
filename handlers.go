@@ -25,8 +25,18 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		w.WriteHeader(403)
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
-	cfg.handlerMetrics(w, r)
+
+	err := cfg.db.DeleteAll(r.Context())
+	if err != nil {
+		log.Printf("Error reseting users table %s", err)
+		return
+	}
 }
 
 func handlerHealth(w http.ResponseWriter, r *http.Request) {
@@ -147,9 +157,10 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	data, err := json.Marshal(user)
+	respBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	data, err := json.Marshal(respBody)
 	if err != nil {
-		log.Printf("Error mashalling JSON: %s", err)
+		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
 
