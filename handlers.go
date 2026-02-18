@@ -176,3 +176,40 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(201)
 	w.Write(data)
 }
+
+func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetAllChirps(r.Context())
+	if err != nil {
+		log.Printf("Error quering database for chips")
+		return
+	}
+
+	type res struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	resBody := []res{}
+	for _, chirp := range chirps {
+		resBody = append(resBody, res{
+			chirp.ID,
+			chirp.CreatedAt,
+			chirp.UpdatedAt,
+			chirp.Body,
+			chirp.UserID,
+		})
+	}
+
+	data, err := json.Marshal(resBody)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(data)
+}
