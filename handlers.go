@@ -3,9 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/rQxwX3/chirpy/internal/database"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
@@ -56,15 +59,15 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
+	decoder := json.NewDecoder(r.Body)
+	chirpStruct := chirp{}
+	err := decoder.Decode(&chirpStruct)
+
 	type resp struct {
 		Valid       bool   `json:"valid"`
 		Error       error  `json:"error"`
 		CleanedBody string `json:"cleaned_body"`
 	}
-
-	decoder := json.NewDecoder(r.Body)
-	chirpStruct := chirp{}
-	err := decoder.Decode(&chirpStruct)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -109,5 +112,48 @@ func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Write(data)
+}
+
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var reqStruct = req{}
+	err := decoder.Decode(&reqStruct)
+	if err != nil {
+		log.Printf("Error decoding JSON: %s", err)
+		return
+	}
+
+	type res struct {
+		Id        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Email:     reqStruct.Email,
+	})
+	if err != nil {
+		log.Printf("Error creating user: %s", err)
+		return
+	}
+
+	data, err := json.Marshal(user)
+	if err != nil {
+		log.Printf("Error mashalling JSON: %s", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
 	w.Write(data)
 }

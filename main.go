@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	// "github.com/google/uuid"
 	"database/sql"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/rQxwX3/chirpy/internal/database"
+	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -14,6 +14,7 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	db             *database.Queries
 }
 
 func getDBQueries() (*database.Queries, error) {
@@ -29,7 +30,15 @@ func getDBQueries() (*database.Queries, error) {
 }
 
 func main() {
-	cfg := apiConfig{}
+	queries, err := getDBQueries()
+	if err != nil {
+		log.Fatalf("Error connecting to the database: %s", err)
+	}
+
+	cfg := apiConfig{
+		db: queries,
+	}
+
 	mux := http.NewServeMux()
 
 	fsHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
@@ -39,15 +48,15 @@ func main() {
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
+	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
 
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
 
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 	if err != nil {
-		fmt.Println("Server error:", err)
-		os.Exit(1)
+		log.Fatalf("Server error:", err)
 	}
 }
