@@ -64,64 +64,72 @@ func filterProfane(chirpBody string) string {
 	return strings.Join(newWords, " ")
 }
 
-func handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
-	type chirp struct {
-		Body string `json:"body"`
+func validateChirp(chirpBody *string) bool {
+	if len(*chirpBody) > 140 {
+		return false
+	}
+
+	*chirpBody = filterProfane(*chirpBody)
+
+	return true
+}
+
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	chirpStruct := chirp{}
-	err := decoder.Decode(&chirpStruct)
+	reqStruct := req{}
 
-	type resp struct {
-		Valid       bool   `json:"valid"`
-		Error       error  `json:"error"`
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
+	err := decoder.Decode(&reqStruct)
 	if err != nil {
-		w.WriteHeader(500)
-
-		respBody := resp{
-			Error: err,
-		}
-
-		data, err := json.Marshal(respBody)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			return
-		}
-
-		w.Write(data)
+		log.Printf("Error decoding JSON: %s", err)
 		return
 	}
 
-	if len(chirpStruct.Body) > 140 {
-		w.WriteHeader(400)
-
-		respBody := resp{Valid: false}
-
-		data, err := json.Marshal(respBody)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			return
-		}
-
-		w.Write(data)
+	if ok := validateChirp(&reqStruct.Body); !ok {
+		log.Printf("Error creating chirp: body exceeds max length")
 		return
 	}
 
-	w.WriteHeader(200)
+	type res struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
 
-	respBody := resp{CleanedBody: filterProfane(chirpStruct.Body)}
-	data, err := json.Marshal(respBody)
+	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Body:      reqStruct.Body,
+		UserID:    reqStruct.UserID,
+	})
+	if err != nil {
+		log.Printf("Error creating chirp: %s", err)
+		return
+	}
+
+	resBody := res{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	data, err := json.Marshal(resBody)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
 	w.Write(data)
 }
 
@@ -157,8 +165,8 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	respBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
-	data, err := json.Marshal(respBody)
+	resBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	data, err := json.Marshal(resBody)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
 		return

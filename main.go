@@ -47,10 +47,10 @@ func main() {
 	mux.Handle("/app/", cfg.middlewareMetricsInc(fsHandler))
 
 	mux.HandleFunc("GET /api/healthz", handlerHealth)
-	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 	mux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
 	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/chirps", cfg.handlerCreateChirp)
 
 	server := http.Server{
 		Addr:    ":8080",
