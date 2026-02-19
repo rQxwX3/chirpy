@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/rQxwX3/chirpy/internal/auth"
 	"github.com/rQxwX3/chirpy/internal/database"
 	"log"
 	"net/http"
@@ -135,7 +136,8 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type req struct {
-		Email string `json:"email"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -154,11 +156,18 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		Email     string    `json:"email"`
 	}
 
+	hash, err := auth.HashPassword(reqStruct.Password)
+	if err != nil {
+		log.Printf("Error hashing the password: %s", err)
+		return
+	}
+
 	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
-		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Email:     reqStruct.Email,
+		ID:             uuid.New(),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		Email:          reqStruct.Email,
+		HashedPassword: hash,
 	})
 	if err != nil {
 		log.Printf("Error creating user: %s", err)
