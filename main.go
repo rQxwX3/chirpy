@@ -1,7 +1,6 @@
 package main
 
 import (
-	// "github.com/google/uuid"
 	"database/sql"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -53,6 +52,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", cfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", cfg.handlerGetAllChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", cfg.handlerGetChirpByID)
+	mux.HandleFunc("POST /api/login", cfg.handlerLogin)
 
 	server := http.Server{
 		Addr:    ":8080",

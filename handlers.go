@@ -35,6 +35,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 
 	err := cfg.db.DeleteAll(r.Context())
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error reseting users table %s", err)
 		return
 	}
@@ -86,6 +87,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 	err := decoder.Decode(&reqStruct)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error decoding JSON: %s", err)
 		return
 	}
@@ -111,6 +113,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		UserID:    reqStruct.UserID,
 	})
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error creating chirp: %s", err)
 		return
 	}
@@ -125,6 +128,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 
 	data, err := json.Marshal(resBody)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
@@ -142,9 +146,10 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 	decoder := json.NewDecoder(r.Body)
 
-	var reqStruct = req{}
+	reqStruct := req{}
 	err := decoder.Decode(&reqStruct)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error decoding JSON: %s", err)
 		return
 	}
@@ -158,6 +163,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 	hash, err := auth.HashPassword(reqStruct.Password)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error hashing the password: %s", err)
 		return
 	}
@@ -170,6 +176,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		HashedPassword: hash,
 	})
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error creating user: %s", err)
 		return
 	}
@@ -177,6 +184,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	resBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
 	data, err := json.Marshal(resBody)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
@@ -189,7 +197,8 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
 	chirps, err := cfg.db.GetAllChirps(r.Context())
 	if err != nil {
-		log.Printf("Error quering database for chirps")
+		w.WriteHeader(500)
+		log.Printf("Error querying database for chirps")
 		return
 	}
 
@@ -214,6 +223,7 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 
 	data, err := json.Marshal(resBody)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
@@ -228,14 +238,15 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 
 	chirpID, err := uuid.Parse(chirpIDString)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error parsing UUID path value %s", err)
 		return
 	}
 
 	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
 	if err != nil {
-		log.Printf("Error quering database for chirp")
 		w.WriteHeader(404)
+		log.Printf("Error querying database for chirp")
 		return
 	}
 
@@ -257,11 +268,67 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 
 	data, err := json.Marshal(resBody)
 	if err != nil {
+		w.WriteHeader(500)
 		log.Printf("Error marshalling JSON: %s", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(data)
+}
+
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	reqStruct := req{}
+	err := decoder.Decode(&reqStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error decoding JSON: %s", err)
+		return
+	}
+
+	user, err := cfg.db.GetUserByEmail(r.Context(), reqStruct.Email)
+	if err != nil {
+		w.WriteHeader(404)
+		log.Printf("Error querying database for user: %s", err)
+		return
+	}
+
+	ok, err := auth.CheckPasswordHash(reqStruct.Password, user.HashedPassword)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error checking password hash: %s", err)
+		return
+	}
+
+	if !ok {
+		w.WriteHeader(401)
+		w.Write([]byte("Incorrect email or password"))
+		return
+	}
+
+	type res struct {
+		Id        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	data, err := json.Marshal(resStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+
 	w.WriteHeader(200)
 	w.Write(data)
 }
