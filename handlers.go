@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -386,18 +387,19 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 	refreshTokenValue, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		w.WriteHeader(500)
-		log.Printf("Error getting refresh token from headers %s", err)
+		log.Printf("Error getting refresh token from headers: %s", err)
 		return
 	}
 
 	refreshToken, err := cfg.db.GetRefreshTokenByValue(r.Context(), refreshTokenValue)
 	if err != nil {
 		w.WriteHeader(401)
-		log.Printf("Error retrieving refresh token from database %s", err)
+		log.Printf("Error retrieving refresh token from database: %s", err)
 		return
 	}
 
-	if time.Now().After(refreshToken.ExpiresAt) {
+	if (time.Now().After(refreshToken.ExpiresAt) ||
+		refreshToken.RevokedAt != sql.NullTime{}) {
 		w.WriteHeader(401)
 		return
 	}
@@ -432,16 +434,76 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 	refreshTokenValue, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		w.WriteHeader(500)
-		log.Printf("Error getting refresh token from headers %s", err)
+		log.Printf("Error getting refresh token from headers: %s", err)
 		return
 	}
 
 	err = cfg.db.RevokeRefreshToken(r.Context(), refreshTokenValue)
 	if err != nil {
 		w.WriteHeader(500)
-		log.Printf("Error revoking refresh token %s", err)
+		log.Printf("Error revoking refresh token: %s", err)
 		return
 	}
 
 	w.WriteHeader(204)
+}
+
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		Token    string `json:"token"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	reqStruct := req{}
+
+	err := decoder.Decode(&reqStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error decoding JSON: %s", err)
+		return
+	}
+
+	userUUID, err := auth.ValidateJWT(reqStruct.Token, cfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(401)
+		return
+	}
+
+	hash, err := auth.HashPassword(reqStruct.Password)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error hashing password: %s", err)
+		return
+	}
+
+	user, err := cfg.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             userUUID,
+		Email:          reqStruct.Email,
+		HashedPassword: hash,
+	})
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error updating database: %s", err)
+		return
+	}
+
+	type res struct {
+		Id        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}
+
+	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	data, err := json.Marshal(resStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Write(data)
 }
