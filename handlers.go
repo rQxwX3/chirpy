@@ -295,9 +295,8 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type req struct {
-		Password         string `json:"password"`
-		Email            string `json:"email"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -317,17 +316,32 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if reqStruct.ExpiresInSeconds == 0 || reqStruct.ExpiresInSeconds > 3600 {
-		reqStruct.ExpiresInSeconds = 3600
-	}
-
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret,
-		time.Duration(reqStruct.ExpiresInSeconds)*time.Second,
-	)
-
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Duration(3600)*time.Second)
 	if err != nil {
 		w.WriteHeader(500)
 		log.Printf("Error creating a JWT: %s", err)
+		return
+	}
+
+	refreshTokenValue, err := auth.MakeRefreshToken()
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error creating a refresh token: %s", err)
+		return
+	}
+
+	currentTime := time.Now().UTC()
+
+	_, err = cfg.db.CreateRefreshToken(r.Context(),
+		database.CreateRefreshTokenParams{
+			Token:     refreshTokenValue,
+			CreatedAt: currentTime,
+			ExpiresAt: currentTime.Add(time.Hour * 24 * 60),
+			UserID:    user.ID,
+		})
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error inserting refresh token to the database: %s", err)
 		return
 	}
 
@@ -345,14 +359,18 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type res struct {
-		Id        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-		Token     string    `json:"token"`
+		Id           uuid.UUID `json:"id"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Email        string    `json:"email"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
 	}
 
-	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email, token}
+	resStruct := res{
+		user.ID, user.CreatedAt, user.UpdatedAt, user.Email, token, refreshTokenValue,
+	}
+
 	data, err := json.Marshal(resStruct)
 	if err != nil {
 		w.WriteHeader(500)
