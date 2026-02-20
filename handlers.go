@@ -386,14 +386,14 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 	refreshTokenValue, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		w.WriteHeader(500)
-		log.Printf("Error getting refresh token from headers")
+		log.Printf("Error getting refresh token from headers %s", err)
 		return
 	}
 
 	refreshToken, err := cfg.db.GetRefreshTokenByValue(r.Context(), refreshTokenValue)
 	if err != nil {
 		w.WriteHeader(401)
-		log.Printf("Error retrieving refresh token from database")
+		log.Printf("Error retrieving refresh token from database %s", err)
 		return
 	}
 
@@ -424,6 +424,24 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(204)
+	w.WriteHeader(200)
 	w.Write(data)
+}
+
+func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
+	refreshTokenValue, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error getting refresh token from headers %s", err)
+		return
+	}
+
+	err = cfg.db.RevokeRefreshToken(r.Context(), refreshTokenValue)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error revoking refresh token %s", err)
+		return
+	}
+
+	w.WriteHeader(204)
 }
