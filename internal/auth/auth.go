@@ -81,9 +81,8 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", errors.New("Authorization header not found")
 	}
 
-	valuesWords := strings.Split(values[0], " ")
-
-	return valuesWords[1], nil
+	words := strings.Split(values[0], " ")
+	return words[1], nil
 }
 
 func MakeRefreshToken() (string, error) {
@@ -118,6 +117,6 @@ func GetAPIKey(headers http.Header) (string, error) {
 		return "", errors.New("API key not found")
 	}
 
-	valuesWords := strings.Split(values[0], " ")
-	return valuesWords[2], nil
+	words := strings.Split(values[0], " ")
+	return words[1], nil
 }

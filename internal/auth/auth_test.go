@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"net/http"
 	"testing"
@@ -41,14 +42,32 @@ func TestJWT(t *testing.T) {
 
 func TestGetBearerToken(t *testing.T) {
 	header := http.Header{}
-	header.Add("Authorization", "Bearer token")
+	expected := "token"
+
+	header.Add("Authorization", fmt.Sprintf("Bearer %s", expected))
 
 	if value, _ := GetBearerToken(header); value != "token" {
-		t.Errorf("Token mismatch")
+		t.Errorf("Token mismatch %s != %s", value, expected)
 	}
 
 	header = http.Header{}
 	if _, err := GetBearerToken(header); err == nil {
 		t.Errorf("Expected error due to absence of the token")
+	}
+}
+
+func TestGetAPIKey(t *testing.T) {
+	header := http.Header{}
+	expected := "key"
+
+	header.Add("Authorization", fmt.Sprintf("ApiKey %s", expected))
+
+	if value, _ := GetBearerToken(header); value != expected {
+		t.Errorf("API key mismatch %s != %s", value, expected)
+	}
+
+	header = http.Header{}
+	if _, err := GetBearerToken(header); err == nil {
+		t.Errorf("Expected error due to absence of the API key")
 	}
 }
