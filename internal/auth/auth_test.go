@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/google/uuid"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -35,5 +36,19 @@ func TestJWT(t *testing.T) {
 	returnedUUID, err := ValidateJWT(token, "secret")
 	if err == nil {
 		t.Errorf("Expected JWT rejection due to timeout")
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	header := http.Header{}
+	header.Add("Authorization", "Bearer token")
+
+	if value, _ := GetBearerToken(header); value != "token" {
+		t.Errorf("Token mismatch")
+	}
+
+	header = http.Header{}
+	if _, err := GetBearerToken(header); err == nil {
+		t.Errorf("Expected error due to absence of the token")
 	}
 }
