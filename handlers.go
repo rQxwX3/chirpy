@@ -515,10 +515,17 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 }
 
 func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
-	userUUIDString, err := auth.GetBearerToken(r.Header)
+	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(401)
 		log.Printf("Error obtaining JWT: %s", err)
+		return
+	}
+
+	userUUID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(401)
+		log.Printf("Error validating JWT: %s", err)
 		return
 	}
 
@@ -534,13 +541,6 @@ func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request)
 	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
 	if err != nil {
 		w.WriteHeader(404)
-		return
-	}
-
-	userUUID, err := uuid.Parse(userUUIDString)
-	if err != nil {
-		w.WriteHeader(500)
-		log.Printf("Error parsing user UUID: %s", err)
 		return
 	}
 
