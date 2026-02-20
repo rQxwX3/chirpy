@@ -449,8 +449,14 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(401)
+		log.Printf("Error obtaining JWT from headers: %s", err)
+		return
+	}
+
 	type req struct {
-		Token    string `json:"token"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
@@ -458,14 +464,14 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 	decoder := json.NewDecoder(r.Body)
 	reqStruct := req{}
 
-	err := decoder.Decode(&reqStruct)
+	err = decoder.Decode(&reqStruct)
 	if err != nil {
 		w.WriteHeader(500)
 		log.Printf("Error decoding JSON: %s", err)
 		return
 	}
 
-	userUUID, err := auth.ValidateJWT(reqStruct.Token, cfg.jwtSecret)
+	userUUID, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
 		w.WriteHeader(401)
 		return
@@ -506,4 +512,49 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 
 	w.WriteHeader(200)
 	w.Write(data)
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	userUUIDString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error obtaining JWT: %s", err)
+		return
+	}
+
+	chirpIDString := r.PathValue("chirpID")
+
+	chirpID, err := uuid.Parse(chirpIDString)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error parsing UUID from URL: %s", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+
+	userUUID, err := uuid.Parse(userUUIDString)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error parsing user UUID: %s", err)
+		return
+	}
+
+	if chirp.UserID != userUUID {
+		w.WriteHeader(403)
+		return
+	}
+
+	err = cfg.db.DeleteChirp(r.Context(), chirp.ID)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error deleing chirp from database: %s", err)
+		return
+	}
+
+	w.WriteHeader(204)
 }
