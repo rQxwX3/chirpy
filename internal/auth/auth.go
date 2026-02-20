@@ -5,6 +5,8 @@ import (
 	"github.com/alexedwards/argon2id"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"net/http"
+	"strings"
 	"time"
 )
 
@@ -69,4 +71,15 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return userUUID, nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	values := headers.Values("Authorization")
+	if len(values) == 0 {
+		return "", errors.New("Authorization header not found")
+	}
+
+	valuesWords := strings.Split(values[0], " ")
+
+	return valuesWords[1], nil
 }

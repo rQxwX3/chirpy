@@ -61,6 +61,6 @@ func main() {
 
 	err = server.ListenAndServe()
 	if err != nil {
-		log.Fatalf("Server error:", err)
+		log.Fatalf("Server error: %v", err)
 	}
 }
