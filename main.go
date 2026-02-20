@@ -18,26 +18,17 @@ type apiConfig struct {
 	jwtSecret      string
 }
 
-func getDBQueries(dbURL string) (*database.Queries, error) {
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		return nil, err
-	}
-
-	return database.New(db), nil
-}
-
 func main() {
 	godotenv.Load()
-	dbURL := os.Getenv("DB_URL")
 
-	queries, err := getDBQueries(dbURL)
+	db, err := sql.Open("postgres", os.Getenv("DB_URL"))
 	if err != nil {
+		log.Fatalf("Eror")
 		log.Fatalf("Error connecting to the database: %s", err)
 	}
 
 	cfg := apiConfig{
-		db:        queries,
+		db:        database.New(db),
 		platform:  os.Getenv("PLATFORM"),
 		jwtSecret: os.Getenv("JWTSECRET"),
 	}
@@ -59,6 +50,7 @@ func main() {
 	mux.HandleFunc("POST /api/revoke", cfg.handlerRevoke)
 	mux.HandleFunc("PUT /api/users", cfg.handlerUpdateUser)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.handlerDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", cfg.handlerUpgradeUserToRed)
 
 	server := http.Server{
 		Addr:    ":8080",

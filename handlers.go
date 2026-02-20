@@ -171,10 +171,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	type res struct {
-		Id        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+		Id          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	hash, err := auth.HashPassword(reqStruct.Password)
@@ -197,7 +198,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	resBody := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email, user.IsChirpyRed}
 	data, err := json.Marshal(resBody)
 	if err != nil {
 		w.WriteHeader(500)
@@ -364,12 +365,14 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		CreatedAt    time.Time `json:"created_at"`
 		UpdatedAt    time.Time `json:"updated_at"`
 		Email        string    `json:"email"`
+		IsChirpyRed  bool      `json:"is_chirpy_red"`
 		Token        string    `json:"token"`
 		RefreshToken string    `json:"refresh_token"`
 	}
 
 	resStruct := res{
-		user.ID, user.CreatedAt, user.UpdatedAt, user.Email, token, refreshTokenValue,
+		user.ID, user.CreatedAt, user.UpdatedAt,
+		user.Email, user.IsChirpyRed, token, refreshTokenValue,
 	}
 
 	data, err := json.Marshal(resStruct)
@@ -496,13 +499,14 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	type res struct {
-		Id        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+		Id          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
-	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email, user.IsChirpyRed}
 	data, err := json.Marshal(resStruct)
 	if err != nil {
 		w.WriteHeader(500)
@@ -553,6 +557,38 @@ func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		w.WriteHeader(500)
 		log.Printf("Error deleing chirp from database: %s", err)
+		return
+	}
+
+	w.WriteHeader(204)
+}
+
+func (cfg *apiConfig) handlerUpgradeUserToRed(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	reqStruct := req{}
+
+	err := decoder.Decode(&reqStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error decoding JSON: %s", err)
+		return
+	}
+
+	if reqStruct.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+
+	err = cfg.db.UpgradeUserToRed(r.Context(), reqStruct.Data.UserID)
+	if err != nil {
+		w.WriteHeader(404)
 		return
 	}
 
