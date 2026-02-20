@@ -564,6 +564,17 @@ func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *apiConfig) handlerUpgradeUserToRed(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		w.WriteHeader(401)
+		return
+	}
+
+	if apiKey != cfg.polkaKey {
+		w.WriteHeader(401)
+		return
+	}
+
 	type req struct {
 		Event string `json:"event"`
 		Data  struct {
@@ -574,7 +585,7 @@ func (cfg *apiConfig) handlerUpgradeUserToRed(w http.ResponseWriter, r *http.Req
 	decoder := json.NewDecoder(r.Body)
 	reqStruct := req{}
 
-	err := decoder.Decode(&reqStruct)
+	err = decoder.Decode(&reqStruct)
 	if err != nil {
 		w.WriteHeader(500)
 		log.Printf("Error decoding JSON: %s", err)
