@@ -381,3 +381,49 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	w.Write(data)
 }
+
+func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
+	refreshTokenValue, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error getting refresh token from headers")
+		return
+	}
+
+	refreshToken, err := cfg.db.GetRefreshTokenByValue(r.Context(), refreshTokenValue)
+	if err != nil {
+		w.WriteHeader(401)
+		log.Printf("Error retrieving refresh token from database")
+		return
+	}
+
+	if time.Now().After(refreshToken.ExpiresAt) {
+		w.WriteHeader(401)
+		return
+	}
+
+	token, err := auth.MakeJWT(refreshToken.UserID, cfg.jwtSecret,
+		time.Duration(3600)*time.Second,
+	)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error creating a JWT: %s", err)
+		return
+	}
+
+	type res struct {
+		Token string `json:"token"`
+	}
+
+	resStruct := res{token}
+
+	data, err := json.Marshal(resStruct)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error marshalling JSON: %s", err)
+		return
+	}
+
+	w.WriteHeader(204)
+	w.Write(data)
+}
