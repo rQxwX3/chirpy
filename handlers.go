@@ -39,6 +39,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error reseting users table %s", err)
 		return
 	}
+	log.Printf("Database reset")
 }
 
 func handlerHealth(w http.ResponseWriter, r *http.Request) {
@@ -84,15 +85,15 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	_, err = auth.ValidateJWT(token, cfg.jwtSecret)
+	userUUID, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
 		w.WriteHeader(401)
+		log.Printf("Error validating JWT: %s", err)
 		return
 	}
 
 	type req struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -106,6 +107,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	}
 
 	if ok := validateChirp(&reqStruct.Body); !ok {
+		w.WriteHeader(400)
 		log.Printf("Error creating chirp: body exceeds max length")
 		return
 	}
@@ -123,7 +125,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Body:      reqStruct.Body,
-		UserID:    reqStruct.UserID,
+		UserID:    userUUID,
 	})
 	if err != nil {
 		w.WriteHeader(500)
@@ -320,7 +322,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret,
-		time.Duration(reqStruct.ExpiresInSeconds),
+		time.Duration(reqStruct.ExpiresInSeconds)*time.Second,
 	)
 
 	if err != nil {
