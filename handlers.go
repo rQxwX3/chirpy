@@ -77,6 +77,19 @@ func validateChirp(chirpBody *string) bool {
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error obtaining JWT from headers: %s", err)
+		return
+	}
+
+	_, err = auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		w.WriteHeader(401)
+		return
+	}
+
 	type req struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
@@ -85,7 +98,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	decoder := json.NewDecoder(r.Body)
 	reqStruct := req{}
 
-	err := decoder.Decode(&reqStruct)
+	err = decoder.Decode(&reqStruct)
 	if err != nil {
 		w.WriteHeader(500)
 		log.Printf("Error decoding JSON: %s", err)
@@ -280,8 +293,9 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type req struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password         string `json:"password"`
+		Email            string `json:"email"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -298,6 +312,20 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(404)
 		log.Printf("Error querying database for user: %s", err)
+		return
+	}
+
+	if reqStruct.ExpiresInSeconds == 0 || reqStruct.ExpiresInSeconds > 3600 {
+		reqStruct.ExpiresInSeconds = 3600
+	}
+
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret,
+		time.Duration(reqStruct.ExpiresInSeconds),
+	)
+
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("Error creating a JWT: %s", err)
 		return
 	}
 
@@ -319,9 +347,10 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 		Email     string    `json:"email"`
+		Token     string    `json:"token"`
 	}
 
-	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email}
+	resStruct := res{user.ID, user.CreatedAt, user.UpdatedAt, user.Email, token}
 	data, err := json.Marshal(resStruct)
 	if err != nil {
 		w.WriteHeader(500)

@@ -15,6 +15,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 func getDBQueries(dbURL string) (*database.Queries, error) {
@@ -36,8 +37,9 @@ func main() {
 	}
 
 	cfg := apiConfig{
-		db:       queries,
-		platform: os.Getenv("PLATFORM"),
+		db:        queries,
+		platform:  os.Getenv("PLATFORM"),
+		jwtSecret: os.Getenv("JWTSECRET"),
 	}
 
 	mux := http.NewServeMux()
