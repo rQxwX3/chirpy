@@ -9,6 +9,7 @@ import (
 	"github.com/rQxwX3/chirpy/internal/database"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 )
@@ -235,6 +236,11 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 		authorChirps, err := cfg.db.GetChirpsByAuthorID(r.Context(), authorUUID)
 
 		chirps = authorChirps
+	}
+
+	sortingOrder := r.URL.Query().Get("sort")
+	if sortingOrder == "desc" {
+		slices.Reverse(chirps)
 	}
 
 	type res struct {
