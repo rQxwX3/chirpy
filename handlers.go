@@ -211,12 +211,30 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	w.Write(data)
 }
 
-func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.GetAllChirps(r.Context())
-	if err != nil {
-		w.WriteHeader(500)
-		log.Printf("Error querying database for chirps")
-		return
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	authorUUIDString := r.URL.Query().Get("author_id")
+	chirps := []database.Chirp{}
+
+	if authorUUIDString == "" {
+		allChirps, err := cfg.db.GetAllChirps(r.Context())
+		if err != nil {
+			w.WriteHeader(500)
+			log.Printf("Error querying database for chirps: %s", err)
+			return
+		}
+
+		chirps = allChirps
+	} else {
+		authorUUID, err := uuid.Parse(authorUUIDString)
+		if err != nil {
+			w.WriteHeader(500)
+			log.Printf("Error parsing for author UUID: %s", err)
+			return
+		}
+
+		authorChirps, err := cfg.db.GetChirpsByAuthorID(r.Context(), authorUUID)
+
+		chirps = authorChirps
 	}
 
 	type res struct {
